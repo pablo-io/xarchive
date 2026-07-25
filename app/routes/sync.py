@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from app.config import SYNC_TIMEOUT_SECONDS
 from app.db import (
@@ -16,6 +16,7 @@ from app.db import (
     upsert_post,
     update_sync_log,
 )
+from app.main import templates
 from app.models import XurlPostInput
 
 router = APIRouter(prefix="")
@@ -31,6 +32,18 @@ _SOURCE_COMMANDS: dict[str, str] = {
     "likes": "likes",
     "bookmarks": "bookmarks",
 }
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+
+def _render_sync_button(request: Request, state: str, **kwargs):
+    """Render the sync button template for a given state."""
+    return templates.TemplateResponse(
+        request,
+        "partials/sync_button.html",
+        {"state": state, **kwargs},
+    )
 
 
 # ── Routes ──────────────────────────────────────────────────────────
@@ -49,8 +62,8 @@ async def trigger_sync(
     global _sync_in_progress, _last_sync_result
 
     if _sync_in_progress:
-        html = _render_sync_button_fragment("error", error_message="A sync is already in progress.")
-        return HTMLResponse(content=html)
+        html = _render_sync_button(request, "error", error_message="A sync is already in progress.")
+        return html
 
     # Determine which sources to sync
     if source_type == "both":
@@ -58,8 +71,8 @@ async def trigger_sync(
     elif source_type in ("likes", "bookmarks"):
         sources = [source_type]
     else:
-        html = _render_sync_button_fragment("error", error_message=f"Invalid source_type: '{source_type}'. Use 'likes', 'bookmarks', or 'both'.")
-        return HTMLResponse(content=html)
+        html = _render_sync_button(request, "error", error_message=f"Invalid source_type: '{source_type}'. Use 'likes', 'bookmarks', or 'both'.")
+        return html
 
     async with _sync_lock:
         _sync_in_progress = True
@@ -88,20 +101,18 @@ async def trigger_sync(
                 "updated": total_updated,
                 "error": "; ".join(errors),
             }
-            html = _render_sync_button_fragment("error", new_count=total_new, updated_count=total_updated, error_message="; ".join(errors))
+            response = _render_sync_button(request, "error", new_count=total_new, updated_count=total_updated, error_message="; ".join(errors))
         else:
             _last_sync_result = {
                 "status": "success",
                 "new": total_new,
                 "updated": total_updated,
             }
-            html = _render_sync_button_fragment("success", new_count=total_new, updated_count=total_updated)
+            response = _render_sync_button(request, "success", new_count=total_new, updated_count=total_updated)
 
         # Return with HX-Trigger header to refresh the post list
-        return HTMLResponse(
-            content=html,
-            headers={"HX-Trigger": "postsChanged"},
-        )
+        response.headers["HX-Trigger"] = "postsChanged"
+        return response
 
 
 @router.get("/sync/status")
@@ -110,19 +121,18 @@ async def sync_status(request: Request):
     global _sync_in_progress, _last_sync_result
 
     if _sync_in_progress:
-        html = _render_sync_button_fragment("running")
+        return _render_sync_button(request, "running")
     elif _last_sync_result:
         r = _last_sync_result
-        html = _render_sync_button_fragment(
+        return _render_sync_button(
+            request,
             r["status"],
             new_count=r.get("new", 0),
             updated_count=r.get("updated", 0),
             error_message=r.get("error"),
         )
     else:
-        html = _render_sync_button_fragment("idle")
-
-    return HTMLResponse(content=html)
+        return _render_sync_button(request, "idle")
 
 
 @router.get("/api/sync/status")
@@ -234,66 +244,3 @@ async def _run_xurl_sync(source: str) -> tuple[int, int]:
             updated_count += 1
 
     return new_count, updated_count
-
-
-# ── Inline HTML render helpers ──────────────────────────────────────
-
-
-def _render_sync_button_fragment(
-    state: str,
-    new_count: int = 0,
-    updated_count: int = 0,
-    error_message: str | None = None,
-) -> str:
-    """Render the sync button HTML fragment for different states.
-
-    States: idle, running, success, error
-    """
-    if state == "running":
-        return (
-            '<div id="sync-button" class="inline-flex items-center gap-2">'
-            '<span class="animate-spin text-lg">\u27f3</span>'
-            '<span class="text-blue-600 font-medium">Syncing...</span>'
-            "</div>"
-        )
-
-    if state == "success":
-        msg = f"\u2713 Synced {new_count} new, {updated_count} updated"
-        return (
-            f'<div id="sync-button" class="inline-flex items-center gap-2">'
-            f'<span class="text-green-600 font-medium">{msg}</span>'
-            f'<button hx-post="/sync" hx-target="#sync-button" hx-swap="outerHTML" '
-            f'class="text-sm text-blue-600 hover:underline ml-2" name="source_type" value="both">'
-            f"Sync again</button>"
-            f"</div>"
-        )
-
-    if state == "error":
-        msg = f"\u2717 {error_message}" if error_message else "\u2717 Sync failed"
-        return (
-            f'<div id="sync-button" class="inline-flex items-center gap-2">'
-            f'<span class="text-red-600 font-medium">{msg}</span>'
-            f'<button hx-post="/sync" hx-target="#sync-button" hx-swap="outerHTML" '
-            f'class="text-sm text-blue-600 hover:underline ml-2" name="source_type" value="both">'
-            f"Retry</button>"
-            f"</div>"
-        )
-
-    # idle
-    # Source: https://htmx.org/attributes/hx-post/
-    return (
-        '<div id="sync-button" class="inline-flex items-center gap-2">'
-        '<button hx-post="/sync" hx-target="#sync-button" hx-swap="outerHTML" '
-        'class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium" '
-        'name="source_type" value="both">'
-        '\u27f3 Sync all</button>'
-        '<button hx-post="/sync" hx-target="#sync-button" hx-swap="outerHTML" '
-        'class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium" '
-        'name="source_type" value="likes">'
-        'Sync likes</button>'
-        '<button hx-post="/sync" hx-target="#sync-button" hx-swap="outerHTML" '
-        'class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium" '
-        'name="source_type" value="bookmarks">'
-        'Sync bookmarks</button>'
-        "</div>"
-    )

@@ -14,10 +14,12 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import HOST, PORT
 from app.db import close_db, init_db
-from app.routes import posts, sync
 
-# Jinja2 templates — importable by route handlers via `from app.main import templates`
+# Jinja2 templates — defined before route imports to avoid circular dependency.
+# Route handlers import this via `from app.main import templates`.
 templates = Jinja2Templates(directory="app/templates")
+
+from app.routes import posts, sync  # noqa: E402
 
 
 @asynccontextmanager

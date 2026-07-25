@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 
-from app.config import SYNC_TIMEOUT_SECONDS
+from app.config import SYNC_TIMEOUT_SECONDS, XURL_COMMAND
 from app.db import (
     create_sync_log,
     get_last_sync_log,
@@ -61,20 +61,18 @@ async def trigger_sync(
     """
     global _sync_in_progress, _last_sync_result
 
-    if _sync_in_progress:
-        html = _render_sync_button(request, "error", error_message="A sync is already in progress.")
-        return html
-
-    # Determine which sources to sync
+    # Validate source_type
     if source_type == "both":
         sources = ["likes", "bookmarks"]
     elif source_type in ("likes", "bookmarks"):
         sources = [source_type]
     else:
-        html = _render_sync_button(request, "error", error_message=f"Invalid source_type: '{source_type}'. Use 'likes', 'bookmarks', or 'both'.")
-        return html
+        return _render_sync_button(request, "error", error_message=f"Invalid source_type: '{source_type}'. Use 'likes', 'bookmarks', or 'both'.")
 
     async with _sync_lock:
+        if _sync_in_progress:
+            return _render_sync_button(request, "error", error_message="A sync is already in progress.")
+
         _sync_in_progress = True
         total_new = 0
         total_updated = 0
@@ -101,7 +99,7 @@ async def trigger_sync(
                 "updated": total_updated,
                 "error": "; ".join(errors),
             }
-            response = _render_sync_button(request, "error", new_count=total_new, updated_count=total_updated, error_message="; ".join(errors))
+            return _render_sync_button(request, "error", new_count=total_new, updated_count=total_updated, error_message="; ".join(errors))
         else:
             _last_sync_result = {
                 "status": "success",
@@ -109,10 +107,8 @@ async def trigger_sync(
                 "updated": total_updated,
             }
             response = _render_sync_button(request, "success", new_count=total_new, updated_count=total_updated)
-
-        # Return with HX-Trigger header to refresh the post list
-        response.headers["HX-Trigger"] = "postsChanged"
-        return response
+            response.headers["HX-Trigger"] = "postsChanged"
+            return response
 
 
 @router.get("/sync/status")
@@ -175,9 +171,10 @@ async def _run_xurl_sync(source: str) -> tuple[int, int]:
         RuntimeError: xurl exited with non-zero code.
         json.JSONDecodeError: xurl output was not valid JSON.
     """
-    from app.config import XURL_COMMAND
+    if source not in ("likes", "bookmarks"):
+        raise RuntimeError(f"Invalid sync source: '{source}'. Must be 'likes' or 'bookmarks'.")
 
-    cmd = _SOURCE_COMMANDS.get(source, source)
+    cmd = source
 
     try:
         process = await asyncio.create_subprocess_exec(

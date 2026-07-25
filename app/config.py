@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-DB_PATH: Path = Path("data/xarchive.db")
+ROOT: Path = Path(__file__).resolve().parent.parent
+
+DB_PATH: Path = ROOT / "data" / "xarchive.db"
 PAGE_SIZE: int = 20
 XURL_COMMAND: str = "xurl"
 SYNC_TIMEOUT_SECONDS: int = 120

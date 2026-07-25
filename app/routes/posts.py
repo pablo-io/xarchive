@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.config import PAGE_SIZE
-from app.db import get_db, get_posts, search_posts
+from app.db import search_posts
 from app.models import Post
 from app.templating import templates
 

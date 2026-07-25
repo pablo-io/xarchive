@@ -6,16 +6,11 @@ Uses raw SQL with parameterized queries. No ORM.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import TYPE_CHECKING
 
 import aiosqlite
 
 from app.config import DB_PATH, PAGE_SIZE
 from app.models import XurlPostInput
-
-if TYPE_CHECKING:
-    pass
 
 # ── Module-level state ──────────────────────────────────────────────
 
@@ -103,21 +98,12 @@ async def get_db() -> aiosqlite.Connection:
 # ── Post CRUD ───────────────────────────────────────────────────────
 
 
-def _merge_source(existing: str, new: str) -> str:
-    """Merge two source strings so a post can be both 'like' and 'bookmark'."""
-    if existing == new:
-        return existing
-    parts: set[str] = set()
-    for src in (existing, new):
-        for part in src.split(","):
-            parts.add(part.strip())
-    return ",".join(sorted(parts))
-
-
 async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
     """Insert or update a post in the database.
 
-    Returns "new" if the post was inserted, "updated" if it was updated.
+    Uses a single atomic INSERT ... ON CONFLICT DO UPDATE with inline
+    source merging. This avoids TOCTOU races between SELECT and INSERT.
+
     Source merging: if a post is already a 'like' and we import it from
     bookmarks, the source becomes 'bookmark,like'.
     """
@@ -125,40 +111,7 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
 
     media_urls_json = json.dumps(post.media_urls)
 
-    # Check if the post already exists to determine action and merge source
-    cursor = await db.execute("SELECT source FROM posts WHERE id = ?", (post.id,))
-    row = await cursor.fetchone()
-
-    if row is None:
-        # Insert
-        await db.execute(
-            """
-            INSERT INTO posts (id, text, author_id, author_username, author_name,
-                               author_avatar, created_at, source, media_urls, url, imported_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                post.id,
-                post.text,
-                post.author_id,
-                post.author_username,
-                post.author_name,
-                post.author_avatar,
-                post.created_at,
-                source,
-                media_urls_json,
-                post.url,
-                now,
-            ),
-        )
-        await db.commit()
-        return "new"
-
-    # Update — merge source
-    existing_source = row["source"]
-    merged_source = _merge_source(existing_source, source)
-
-    await db.execute(
+    cursor = await db.execute(
         """
         INSERT INTO posts (id, text, author_id, author_username, author_name,
                            author_avatar, created_at, source, media_urls, url, imported_at)
@@ -170,7 +123,14 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
             author_name = excluded.author_name,
             author_avatar = excluded.author_avatar,
             created_at = excluded.created_at,
-            source = excluded.source,
+            source = CASE
+                WHEN posts.source = excluded.source THEN posts.source
+                WHEN posts.source LIKE '%like%' AND excluded.source = 'bookmark'
+                    THEN 'bookmark,like'
+                WHEN posts.source LIKE '%bookmark%' AND excluded.source = 'like'
+                    THEN 'bookmark,like'
+                ELSE excluded.source
+            END,
             media_urls = excluded.media_urls,
             url = excluded.url,
             imported_at = excluded.imported_at
@@ -183,14 +143,18 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
             post.author_name,
             post.author_avatar,
             post.created_at,
-            merged_source,
+            source,
             media_urls_json,
             post.url,
             now,
         ),
     )
     await db.commit()
-    return "updated"
+
+    await db.execute("SELECT changes() AS c")
+    row = await (await db.execute("SELECT changes() AS c")).fetchone()
+    # changes() returns 1 for new row, 2 for updated row in SQLite upsert
+    return "updated" if row and row["c"] > 1 else "new"
 
 
 def row_to_post_dict(row: aiosqlite.Row) -> dict:
@@ -247,8 +211,9 @@ def _build_post_query(
         params.append(f"{date_to}T23:59:59Z")
 
     if source != "all":
-        conditions.append("posts.source LIKE ?")
-        params.append(f"%{source}%")
+        conditions.append("(posts.source = ? OR posts.source LIKE ?)")
+        params.append(source)
+        params.append(f"%,{source}%")
 
     where = " AND ".join(conditions) if conditions else "1=1"
     return where, params

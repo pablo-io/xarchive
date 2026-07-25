@@ -5,16 +5,14 @@ Wires together lifespan, static files, template engine, and routers.
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.config import HOST, PORT
+from app.config import HOST, PORT, ROOT
 from app.db import close_db, init_db
-from app.templating import templates  # noqa: F401 — templates is available for uvicorn
 
-from app.routes import posts, sync  # noqa: E402
+from app.routes import posts, sync
 
 
 @asynccontextmanager
@@ -37,10 +35,10 @@ def create_app() -> FastAPI:
     )
 
     # Static files mount
-    static_dir = "app/static"
-    if not os.path.isdir(static_dir):
-        os.makedirs(static_dir, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    static_dir = ROOT / "app" / "static"
+    if not static_dir.is_dir():
+        static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     # Include routers
     app.include_router(posts.router)

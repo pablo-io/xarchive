@@ -1,0 +1,27 @@
+[project]
+name = "xarchive"
+version = "0.1.0"
+description = "Local X.com (Twitter) likes and bookmarks archive with search"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "aiosqlite",
+    "jinja2",
+    "python-multipart",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-playwright",
+]
+
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

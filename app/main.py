@@ -5,14 +5,19 @@ Wires together lifespan, static files, template engine, and routers.
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.config import HOST, PORT
 from app.db import close_db, init_db
 from app.routes import posts, sync
+
+# Jinja2 templates — importable by route handlers via `from app.main import templates`
+templates = Jinja2Templates(directory="app/templates")
 
 
 @asynccontextmanager
@@ -35,7 +40,6 @@ def create_app() -> FastAPI:
     )
 
     # Static files mount
-    import os
     static_dir = "app/static"
     if not os.path.isdir(static_dir):
         os.makedirs(static_dir, exist_ok=True)

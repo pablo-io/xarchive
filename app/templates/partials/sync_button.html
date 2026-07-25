@@ -1,0 +1,45 @@
+<div id="sync-button" class="sync-container inline-flex items-center gap-2 flex-wrap">
+    {% if state == "running" %}
+        <span class="animate-spin text-lg text-blue-500">&#10227;</span>
+        <span class="text-blue-600 font-medium text-sm">Syncing...</span>
+
+    {% elif state == "success" %}
+        <span class="text-green-600 font-medium text-sm">&#10003; Synced {{ new_count }} new, {{ updated_count }} updated</span>
+        <button hx-post="/sync"
+                hx-target="#sync-button"
+                hx-swap="outerHTML"
+                class="text-sm text-blue-600 hover:underline ml-2 font-medium"
+                name="source_type" value="both">
+            Sync again
+        </button>
+
+    {% elif state == "error" %}
+        <span class="text-red-600 font-medium text-sm">&#10007; {{ error_message | default("Sync failed") }}</span>
+        <button hx-post="/sync"
+                hx-target="#sync-button"
+                hx-swap="outerHTML"
+                class="text-sm text-blue-600 hover:underline ml-2 font-medium"
+                name="source_type" value="both">
+            Retry
+        </button>
+
+    {% else %}
+        {# idle state — form with select + submit for HTMX POST #}
+        <form hx-post="/sync"
+              hx-target="#sync-button"
+              hx-swap="outerHTML"
+              class="inline-flex items-center gap-2">
+            <label for="sync-source" class="sr-only">Sync source</label>
+            <select id="sync-source" name="source_type"
+                    class="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="both">All</option>
+                <option value="likes">Likes</option>
+                <option value="bookmarks">Bookmarks</option>
+            </select>
+            <button type="submit"
+                    class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium inline-flex items-center gap-1.5">
+                &#10227; Sync
+            </button>
+        </form>
+    {% endif %}
+</div>

@@ -2,6 +2,7 @@
     {% if state == "running" %}
         <span class="animate-spin text-lg text-blue-500">&#10227;</span>
         <span class="text-blue-600 font-medium text-sm">Syncing...</span>
+        <script>setTimeout(function(){ htmx.ajax('GET', '/sync/status', {target: '#sync-button', swap: 'outerHTML'}) }, 2000);</script>
 
     {% elif state == "success" %}
         <span class="text-green-600 font-medium text-sm">&#10003; Synced {{ new_count }} new, {{ updated_count }} updated</span>

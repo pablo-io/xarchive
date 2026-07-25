@@ -111,7 +111,7 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
 
     media_urls_json = json.dumps(post.media_urls)
 
-    cursor = await db.execute(
+    cursor =     await db.execute(
         """
         INSERT INTO posts (id, text, author_id, author_username, author_name,
                            author_avatar, created_at, source, media_urls, url, imported_at)
@@ -125,9 +125,11 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
             created_at = excluded.created_at,
             source = CASE
                 WHEN posts.source = excluded.source THEN posts.source
-                WHEN posts.source LIKE '%like%' AND excluded.source = 'bookmark'
+                WHEN (posts.source = 'like' OR posts.source LIKE '%,like' OR posts.source LIKE 'like,%' OR posts.source LIKE '%,like,%')
+                     AND excluded.source = 'bookmark'
                     THEN 'bookmark,like'
-                WHEN posts.source LIKE '%bookmark%' AND excluded.source = 'like'
+                WHEN (posts.source = 'bookmark' OR posts.source LIKE '%,bookmark' OR posts.source LIKE 'bookmark,%' OR posts.source LIKE '%,bookmark,%')
+                     AND excluded.source = 'like'
                     THEN 'bookmark,like'
                 ELSE excluded.source
             END,
@@ -151,9 +153,8 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
     )
     await db.commit()
 
-    await db.execute("SELECT changes() AS c")
-    row = await (await db.execute("SELECT changes() AS c")).fetchone()
-    # changes() returns 1 for new row, 2 for updated row in SQLite upsert
+    cursor = await db.execute("SELECT changes() AS c")
+    row = await cursor.fetchone()
     return "updated" if row and row["c"] > 1 else "new"
 
 

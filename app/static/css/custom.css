@@ -11,7 +11,6 @@
 }
 
 .skeleton-card {
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
     background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s ease-in-out infinite;

@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import PAGE_SIZE
 from app.db import get_db, get_posts, search_posts
-from app.main import templates
 from app.models import Post
+from app.templating import templates
 
 router = APIRouter(prefix="")
 

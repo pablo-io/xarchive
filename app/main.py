@@ -10,14 +10,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-
 from app.config import HOST, PORT
 from app.db import close_db, init_db
-
-# Jinja2 templates — defined before route imports to avoid circular dependency.
-# Route handlers import this via `from app.main import templates`.
-templates = Jinja2Templates(directory="app/templates")
+from app.templating import templates  # noqa: F401 — templates is available for uvicorn
 
 from app.routes import posts, sync  # noqa: E402
 

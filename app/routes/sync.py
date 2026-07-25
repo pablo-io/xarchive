@@ -16,8 +16,8 @@ from app.db import (
     upsert_post,
     update_sync_log,
 )
-from app.main import templates
 from app.models import XurlPostInput
+from app.templating import templates
 
 router = APIRouter(prefix="")
 

@@ -1,0 +1,21 @@
+# Database
+data/
+data/xarchive.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Test cache
+.pytest_cache/
+
+# Build artifacts
+*.egg-info/
+
+# Environment
+.env
+.venv/
+venv/
+
+# Lock files
+uv.lock

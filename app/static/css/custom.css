@@ -33,3 +33,38 @@
 .htmx-request.htmx-indicator {
     opacity: 1;
 }
+
+/* ── Dark theme system ──────────────────────────────────────────────────────
+   Colors inspired by x.com dark theme. Light values live in :root; dark
+   values are scoped under [data-theme="dark"] on the <html> element. The
+   toggle script in base.html flips data-theme and persists it to localStorage.
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+    --bg-page: #f9fafb;
+    --bg-card: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --accent-color: #2563eb;
+    --bg-hover: #f3f4f6;
+}
+
+[data-theme="dark"] {
+    --bg-page: #000000;
+    --bg-card: #16181c;
+    --text-primary: #e7e9ea;
+    --text-secondary: #71767b;
+    --border-color: #2f3336;
+    --accent-color: #1d9bf0;
+    --bg-hover: #181818;
+}
+
+/* Utility classes that map Tailwind-style helpers onto the theme variables */
+.card-bg { background-color: var(--bg-card); }
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.border-themed { border-color: var(--border-color); }
+.bg-page { background-color: var(--bg-page); }
+.accent { color: var(--accent-color); }
+.bg-hover:hover { background-color: var(--bg-hover); }

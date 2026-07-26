@@ -8,11 +8,36 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <link rel="stylesheet" href="/static/css/custom.css">
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-page min-h-screen">
     {% block header %}{% endblock %}
     <main class="max-w-4xl mx-auto px-4 py-6">
         {% block content %}{% endblock %}
     </main>
     {% block scripts %}{% endblock %}
+    <script>
+        function getTheme() {
+            try { return localStorage.getItem('xarchive-theme') || 'light'; }
+            catch (e) { return 'light'; }
+        }
+        function setTheme(t) {
+            try { localStorage.setItem('xarchive-theme', t); } catch (e) {}
+        }
+        function applyTheme(t) {
+            document.documentElement.setAttribute('data-theme', t);
+        }
+        function toggleTheme() {
+            var t = getTheme() === 'dark' ? 'light' : 'dark';
+            setTheme(t);
+            applyTheme(t);
+            updateThemeIcon(t);
+        }
+        function updateThemeIcon(t) {
+            var btn = document.getElementById('theme-toggle');
+            if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+        }
+        // Apply persisted theme on load and sync the toggle button icon.
+        applyTheme(getTheme());
+        updateThemeIcon(getTheme());
+    </script>
 </body>
 </html>

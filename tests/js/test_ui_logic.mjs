@@ -159,6 +159,23 @@ check(
   ctx.store.get("xarchive-theme") === "light"
 );
 
+// ── Tarea 3: search-bar toggle ──────────────────────────────────────────────
+
+console.log("Tarea 3: search bar toggle");
+// Simulate the initial hidden state applied by the wrapper markup (Tarea 4).
+const wrapper = ctx.sandbox.document.getElementById("search-bar-wrapper");
+wrapper.classList.add("hidden");
+ctx.sandbox.toggleSearchBar();
+check(
+  "first toggle reveals the search bar (hidden removed)",
+  ctx.els["search-bar-wrapper"].classList.contains("hidden") === false
+);
+ctx.sandbox.toggleSearchBar();
+check(
+  "second toggle hides the search bar again",
+  ctx.els["search-bar-wrapper"].classList.contains("hidden") === true
+);
+
 // ── Report ──────────────────────────────────────────────────────────────────
 
 if (failures.length > 0) {

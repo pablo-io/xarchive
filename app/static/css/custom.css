@@ -81,6 +81,7 @@
 .media-grid-item {
     aspect-ratio: 1 / 1;
     width: 100%;
+    display: block;
 }
 
 /* Search-bar visibility toggle (Tarea 4) */

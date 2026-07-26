@@ -21,22 +21,22 @@
                    autocomplete="off">
         </div>
         <div>
-            <label class="date-compact-btn relative w-full" id="label-date-from">
+            <div class="date-compact-btn relative w-full" id="label-date-from">
                 <input type="date" id="search-date-from" name="date_from"
                        value="{{ date_from | default('') }}"
                        class="search-field absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                        onchange="updateDateLabel('date-from', this.value)">
                 <span class="date-compact-text pointer-events-none">📅 {{ date_from if date_from else 'Inicio' }}</span>
-            </label>
+            </div>
         </div>
         <div>
-            <label class="date-compact-btn relative w-full" id="label-date-to">
+            <div class="date-compact-btn relative w-full" id="label-date-to">
                 <input type="date" id="search-date-to" name="date_to"
                        value="{{ date_to | default('') }}"
                        class="search-field absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                        onchange="updateDateLabel('date-to', this.value)">
                 <span class="date-compact-text pointer-events-none">📅 {{ date_to if date_to else 'Fin' }}</span>
-            </label>
+            </div>
         </div>
     </div>
     <div class="flex items-center gap-3 mt-3">

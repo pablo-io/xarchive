@@ -1,7 +1,5 @@
-# Prompt para /devloop — xarchive MVP
-
 ```
-/devloop xarchive: cliente web que sincroniza likes y bookmarks de X.com via xurl CLI a SQLite local y los muestra con FastAPI + HTMX
+xarchive: cliente web que sincroniza likes y bookmarks de X.com via xurl CLI a SQLite local y los muestra con FastAPI + HTMX
 ```
 
 ## Stack

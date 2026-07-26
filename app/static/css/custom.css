@@ -82,3 +82,20 @@
     aspect-ratio: 1 / 1;
     width: 100%;
 }
+
+/* Search-bar visibility toggle (Tarea 4) */
+.search-bar-wrapper {
+    overflow: hidden;
+    transition: max-height 300ms ease-in-out, opacity 300ms ease-in-out;
+}
+.search-bar-wrapper.hidden {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    display: block;
+}
+.search-bar-wrapper:not(.hidden) {
+    max-height: 500px;
+    opacity: 1;
+    pointer-events: auto;
+}

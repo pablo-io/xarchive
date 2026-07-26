@@ -1,4 +1,4 @@
-// Unit tests for the inline UI JavaScript (Tarea 2, 4, 5).
+// Unit tests for the inline UI JavaScript (Tarea 2, 3, 4, 5).
 //
 // The inline <script> blocks are extracted verbatim from the Jinja templates
 // and executed inside a Node `vm` context with a minimal DOM / localStorage
@@ -94,8 +94,20 @@ function buildContext() {
       },
     },
   };
-  sandbox.window.document = sandbox.document;
   return { sandbox, els, qels, documentElement, store };
+}
+
+// Build a context, optionally pre-seed the search-bar-wrapper as hidden,
+// then evaluate the production inline scripts with the given ?search string.
+function loadUI(search = "", seedHidden = false) {
+  const ctx = buildContext();
+  ctx.sandbox.window.location.search = search;
+  if (seedHidden) {
+    ctx.sandbox.document.getElementById("search-bar-wrapper").classList.add("hidden");
+  }
+  vm.createContext(ctx.sandbox);
+  vm.runInContext(extractScripts(), ctx.sandbox, { filename: "inline-ui.js" });
+  return ctx;
 }
 
 // ── Tiny test framework ─────────────────────────────────────────────────────
@@ -110,20 +122,9 @@ function check(name, cond) {
   }
 }
 
-// ── Execute the production scripts ──────────────────────────────────────────
-
-const ctx = buildContext();
-const script = extractScripts();
-
-if (script.trim() === "") {
-  console.error("No inline scripts found to test.");
-  process.exit(1);
-}
-
-vm.createContext(ctx.sandbox);
-vm.runInContext(script, ctx.sandbox, { filename: "inline-ui.js" });
-
 // ── Tarea 2: dark-theme toggle logic ────────────────────────────────────────
+
+const ctx = loadUI();
 
 console.log("Tarea 2: theme toggle");
 check(
@@ -162,7 +163,6 @@ check(
 // ── Tarea 3: search-bar toggle ──────────────────────────────────────────────
 
 console.log("Tarea 3: search bar toggle");
-// Simulate the initial hidden state applied by the wrapper markup (Tarea 4).
 const wrapper = ctx.sandbox.document.getElementById("search-bar-wrapper");
 wrapper.classList.add("hidden");
 ctx.sandbox.toggleSearchBar();
@@ -174,6 +174,34 @@ ctx.sandbox.toggleSearchBar();
 check(
   "second toggle hides the search bar again",
   ctx.els["search-bar-wrapper"].classList.contains("hidden") === true
+);
+
+// ── Tarea 4: search-bar visibility + hasSearchParams ────────────────────────
+
+console.log("Tarea 4: search bar visibility");
+ctx.sandbox.window.location.search = "?q=test";
+check("hasSearchParams true when q present", ctx.sandbox.hasSearchParams() === true);
+ctx.sandbox.window.location.search = "?date_from=2025-01-01";
+check("hasSearchParams true when date_from present", ctx.sandbox.hasSearchParams() === true);
+ctx.sandbox.window.location.search = "?source=all";
+check("hasSearchParams false when only source=all", ctx.sandbox.hasSearchParams() === false);
+ctx.sandbox.window.location.search = "";
+check("hasSearchParams false with no params", ctx.sandbox.hasSearchParams() === false);
+
+const shown = loadUI("?q=test", true);
+check(
+  "auto-show reveals wrapper when search params present",
+  shown.els["search-bar-wrapper"].classList.contains("hidden") === false
+);
+const hiddenEmpty = loadUI("", true);
+check(
+  "wrapper stays hidden with no params",
+  hiddenEmpty.els["search-bar-wrapper"].classList.contains("hidden") === true
+);
+const hiddenAll = loadUI("?source=all", true);
+check(
+  "wrapper stays hidden when only source=all",
+  hiddenAll.els["search-bar-wrapper"].classList.contains("hidden") === true
 );
 
 // ── Report ──────────────────────────────────────────────────────────────────

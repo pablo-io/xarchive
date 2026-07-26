@@ -21,19 +21,21 @@
                    autocomplete="off">
         </div>
         <div>
-            <label for="search-date-from" class="date-compact-btn relative" id="label-date-from">
+            <label class="date-compact-btn" id="label-date-from"
+                   onclick="document.getElementById('search-date-from').showPicker()">
                 <input type="date" id="search-date-from" name="date_from"
                        value="{{ date_from | default('') }}"
-                       class="search-field absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                       class="search-field sr-only"
                        onchange="updateDateLabel('date-from', this.value)">
                 <span class="date-compact-text">📅 {{ date_from if date_from else 'Inicio' }}</span>
             </label>
         </div>
         <div>
-            <label for="search-date-to" class="date-compact-btn relative" id="label-date-to">
+            <label class="date-compact-btn" id="label-date-to"
+                   onclick="document.getElementById('search-date-to').showPicker()">
                 <input type="date" id="search-date-to" name="date_to"
                        value="{{ date_to | default('') }}"
-                       class="search-field absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                       class="search-field sr-only"
                        onchange="updateDateLabel('date-to', this.value)">
                 <span class="date-compact-text">📅 {{ date_to if date_to else 'Fin' }}</span>
             </label>

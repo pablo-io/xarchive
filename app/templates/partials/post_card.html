@@ -20,9 +20,9 @@
             {% if post.media_urls %}
             <div class="media-grid mt-2">
                 {% for url in post.media_urls[:4] %}
-                <img src="{{ url }}"
-                     class="media-grid-item object-cover rounded-lg border border-themed"
-                     alt="media attachment" loading="lazy">
+                 <img src="{{ url }}"
+                      class="media-grid-item rounded-lg border border-themed"
+                      alt="media attachment" loading="lazy">
                 {% endfor %}
             </div>
             {% endif %}

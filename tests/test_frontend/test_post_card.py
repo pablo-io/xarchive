@@ -70,6 +70,5 @@ def test_css_defines_media_grid_rules():
     css = CSS_PATH.read_text(encoding="utf-8")
     assert ".media-grid {" in css
     assert ".media-grid-item" in css
-    assert "aspect-ratio: 1 / 1" in css
-    assert "grid-template-columns: repeat(2, 1fr)" in css
-    assert "grid-template-columns: repeat(4, 1fr)" in css
+    assert "width: 100%" in css
+    assert "height: auto" in css

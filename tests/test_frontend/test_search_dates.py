@@ -34,7 +34,8 @@ def test_date_inputs_hidden_but_functional():
     assert 'type="date"' in html
     assert 'name="date_from"' in html
     assert 'name="date_to"' in html
-    assert "search-field sr-only" in html
+    assert "opacity-0" in html
+    assert "cursor-pointer" in html
 
 
 def test_date_labels_call_updateDateLabel():

@@ -68,3 +68,17 @@
 .bg-page { background-color: var(--bg-page); }
 .accent { color: var(--accent-color); }
 .bg-hover:hover { background-color: var(--bg-hover); }
+
+/* Responsive media grid for post cards (Tarea 6) */
+.media-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 640px) {
+    .media-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.media-grid-item {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+}

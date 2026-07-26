@@ -6,6 +6,7 @@ Uses raw SQL with parameterized queries. No ORM.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import aiosqlite
 
@@ -111,7 +112,11 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
 
     media_urls_json = json.dumps(post.media_urls)
 
-    cursor =     await db.execute(
+    # Check if post already exists to determine return value
+    cursor = await db.execute("SELECT 1 FROM posts WHERE id = ?", (post.id,))
+    exists = await cursor.fetchone() is not None
+
+    await db.execute(
         """
         INSERT INTO posts (id, text, author_id, author_username, author_name,
                            author_avatar, created_at, source, media_urls, url, imported_at)
@@ -153,9 +158,7 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
     )
     await db.commit()
 
-    cursor = await db.execute("SELECT changes() AS c")
-    row = await cursor.fetchone()
-    return "updated" if row and row["c"] > 1 else "new"
+    return "updated" if exists else "new"
 
 
 def row_to_post_dict(row: aiosqlite.Row) -> dict:

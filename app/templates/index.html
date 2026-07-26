@@ -1,21 +1,29 @@
 {% extends "base.html" %}
 
 {% block header %}
-<header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-        <h1 class="text-xl font-bold text-gray-900 tracking-tight">&#128230; xarchive</h1>
-        <div id="sync-button" class="sync-container"
-             hx-get="/sync/status"
-             hx-trigger="load"
-             hx-swap="outerHTML">
-            <span class="text-gray-400 text-sm">Loading...</span>
+<header class="sticky top-0 z-50 card-bg backdrop-blur-md border-b border-themed">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        <h1 class="text-xl font-bold text-primary tracking-tight">&#128230; xarchive</h1>
+        <div class="flex items-center gap-2">
+            <div id="sync-button" class="sync-container"
+                 hx-get="/sync/status"
+                 hx-trigger="load"
+                 hx-swap="outerHTML">
+                <span class="text-secondary text-sm">Loading...</span>
+            </div>
+            <button id="search-toggle" onclick="toggleSearchBar()" aria-label="Toggle search bar"
+                    class="p-2 rounded-lg bg-hover text-primary text-lg">&#128269;</button>
+            <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark theme"
+                    class="p-2 rounded-lg bg-hover text-primary text-lg">&#127769;</button>
         </div>
     </div>
 </header>
 {% endblock %}
 
 {% block content %}
-{% include "partials/search_bar.html" %}
+<div id="search-bar-wrapper" class="search-bar-wrapper hidden">
+    {% include "partials/search_bar.html" %}
+</div>
 
 <div id="post-list"
      hx-get="/posts"
@@ -28,4 +36,24 @@
         <div class="skeleton-card"></div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleSearchBar() {
+        var w = document.getElementById('search-bar-wrapper');
+        if (w) w.classList.toggle('hidden');
+    }
+    function hasSearchParams() {
+        var p = new URLSearchParams(window.location.search);
+        return ['q', 'username', 'date_from', 'date_to', 'source'].some(function (k) {
+            var v = p.get(k);
+            return v && v !== '' && v !== 'all';
+        });
+    }
+    if (hasSearchParams()) {
+        var w = document.getElementById('search-bar-wrapper');
+        if (w) w.classList.remove('hidden');
+    }
+</script>
 {% endblock %}

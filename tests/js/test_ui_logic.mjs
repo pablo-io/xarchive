@@ -204,6 +204,32 @@ check(
   hiddenAll.els["search-bar-wrapper"].classList.contains("hidden") === true
 );
 
+// ── Tarea 5: compact date labels ────────────────────────────────────────────
+
+console.log("Tarea 5: compact date labels");
+const fromSpan = ctx.sandbox.document.querySelector("#label-date-from .date-compact-text");
+ctx.sandbox.updateDateLabel("date-from", "2025-03-20");
+check(
+  "updateDateLabel shows the selected date for 'from'",
+  fromSpan.textContent === "📅 2025-03-20"
+);
+ctx.sandbox.updateDateLabel("date-from", "");
+check(
+  "updateDateLabel falls back to 'Inicio' when cleared (from)",
+  fromSpan.textContent === "Inicio"
+);
+const toSpan = ctx.sandbox.document.querySelector("#label-date-to .date-compact-text");
+ctx.sandbox.updateDateLabel("date-to", "2025-12-31");
+check(
+  "updateDateLabel shows the selected date for 'to'",
+  toSpan.textContent === "📅 2025-12-31"
+);
+ctx.sandbox.updateDateLabel("date-to", "");
+check(
+  "updateDateLabel falls back to 'Fin' when cleared (to)",
+  toSpan.textContent === "Fin"
+);
+
 // ── Report ──────────────────────────────────────────────────────────────────
 
 if (failures.length > 0) {

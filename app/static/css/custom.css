@@ -99,3 +99,20 @@
     opacity: 1;
     pointer-events: auto;
 }
+
+/* Compact date filter buttons (Tarea 5) */
+.date-compact-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    transition: background 150ms;
+}
+.date-compact-btn:hover { background: var(--bg-hover); }
+.date-compact-text { white-space: nowrap; }

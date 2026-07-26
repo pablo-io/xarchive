@@ -4,38 +4,46 @@
       hx-trigger="input changed delay:300ms from:#search-q, change from:.search-field, submit"
       hx-push-url="true"
       hx-indicator="#search-spinner"
-      class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-2">
+      class="card-bg rounded-xl shadow-sm border border-themed p-4 mb-2">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div class="lg:col-span-2">
             <label for="search-q" class="sr-only">Search text</label>
             <input type="search" id="search-q" name="q" value="{{ q | default('') }}"
                    placeholder="Search posts..."
-                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   class="search-field w-full px-3 py-2 border border-themed card-bg text-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                    autocomplete="off">
         </div>
         <div>
             <label for="search-username" class="sr-only">Username</label>
             <input type="text" id="search-username" name="username" value="{{ username | default('') }}"
                    placeholder="@username"
-                   class="search-field w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   class="search-field w-full px-3 py-2 border border-themed card-bg text-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                    autocomplete="off">
         </div>
         <div>
-            <label for="search-date-from" class="sr-only">From date</label>
-            <input type="date" id="search-date-from" name="date_from" value="{{ date_from | default('') }}"
-                   class="search-field w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <label for="search-date-from" class="date-compact-btn" id="label-date-from">
+                <input type="date" id="search-date-from" name="date_from"
+                       value="{{ date_from | default('') }}"
+                       class="search-field sr-only"
+                       onchange="updateDateLabel('date-from', this.value)">
+                <span class="date-compact-text">📅 {{ date_from if date_from else 'Inicio' }}</span>
+            </label>
         </div>
         <div>
-            <label for="search-date-to" class="sr-only">To date</label>
-            <input type="date" id="search-date-to" name="date_to" value="{{ date_to | default('') }}"
-                   class="search-field w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <label for="search-date-to" class="date-compact-btn" id="label-date-to">
+                <input type="date" id="search-date-to" name="date_to"
+                       value="{{ date_to | default('') }}"
+                       class="search-field sr-only"
+                       onchange="updateDateLabel('date-to', this.value)">
+                <span class="date-compact-text">📅 {{ date_to if date_to else 'Fin' }}</span>
+            </label>
         </div>
     </div>
     <div class="flex items-center gap-3 mt-3">
         <div>
             <label for="search-source" class="sr-only">Source filter</label>
             <select id="search-source" name="source"
-                    class="search-field px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+                    class="search-field px-3 py-2 border border-themed card-bg text-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 <option value="all" {{ 'selected' if source | default('all') == 'all' }}>All sources</option>
                 <option value="like" {{ 'selected' if source | default('') == 'like' }}>&#10084;&#65039; Likes</option>
                 <option value="bookmark" {{ 'selected' if source | default('') == 'bookmark' }}>&#128278; Bookmarks</option>
@@ -56,3 +64,10 @@
         </div>
     </div>
 </form>
+
+<script>
+    function updateDateLabel(id, value) {
+        var span = document.querySelector('#label-' + id + ' .date-compact-text');
+        if (span) span.textContent = value ? '📅 ' + value : (id === 'date-from' ? 'Inicio' : 'Fin');
+    }
+</script>

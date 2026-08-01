@@ -143,16 +143,15 @@ async def test_get_sync_status_idle_has_no_select_combobox(app_client):
     assert "bookmarks</option" not in body
 
 
-async def test_get_sync_status_idle_submits_source_type_both(app_client):
-    """RF-2 acceptance: the idle sync button submits ``source_type=both`` via
-    HTMX POST to ``/sync`` (no selector — direct value on the submit
-    button).
+async def test_get_sync_status_idle_submits_direct_post(app_client):
+    """RF-2 acceptance: the idle sync button submits a direct HTMX POST to
+    ``/sync`` with no ``source_type`` selector (only likes are synced now).
     """
     response = await app_client.get("/sync/status")
     body = response.text
     assert 'hx-post="/sync"' in body
-    assert 'name="source_type"' in body
-    assert 'value="both"' in body
+    assert 'name="source_type"' not in body
+    assert 'aria-label="Sync likes"' in body
 
 
 async def test_get_index_header_has_no_select_combobox(app_client):
@@ -196,15 +195,19 @@ async def test_get_index_includes_search_toggle_handler(app_client):
 async def test_get_index_includes_has_search_params_helper(app_client):
     """RF-3 acceptance: the page contains the ``hasSearchParams()`` helper
     that auto-shows the bar when the URL has any of ``q``, ``username``,
-    ``date_from``, ``date_to``, or a non-``all`` ``source`` value (per the
-    spec's auto-show requirement).
+    ``date_from`` or ``date_to`` (per the spec's auto-show requirement).
+    The ``source`` key has been removed with the source filter.
     """
     response = await app_client.get("/")
     body = response.text
     assert "function hasSearchParams" in body
     # The recognised parameter keys must match the spec exactly.
-    for key in ("q", "username", "date_from", "date_to", "source"):
+    for key in ("q", "username", "date_from", "date_to"):
         assert key in body, f"hasSearchParams does not check for {key!r}"
+    # The source filter was removed, so 'source' must not be recognised.
+    func_start = body.index("function hasSearchParams")
+    func_end = body.index("}", func_start)
+    assert "'source'" not in body[func_start:func_end]
 
 
 # ── RF-4: compact date fields + end-to-end date filter via HTTP ───────────

@@ -17,7 +17,7 @@ from app.templating import templates
 
 def render_search(date_from: str = "", date_to: str = "") -> str:
     return templates.get_template("partials/search_bar.html").render(
-        q="", username="", date_from=date_from, date_to=date_to, source="all"
+        q="", username="", date_from=date_from, date_to=date_to
     )
 
 

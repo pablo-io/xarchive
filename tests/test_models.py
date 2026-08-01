@@ -102,22 +102,33 @@ def test_post_created_at_display_invalid():
 def test_post_is_like():
     """is_like returns True when source contains 'like'."""
     assert _make_post(source="like").is_like is True
-    assert _make_post(source="bookmark,like").is_like is True
+    assert _make_post(source="like,bookmark").is_like is True
     assert _make_post(source="bookmark").is_like is False
 
 
-def test_post_is_bookmark():
-    """is_bookmark returns True when source contains 'bookmark'."""
-    assert _make_post(source="bookmark").is_bookmark is True
-    assert _make_post(source="like,bookmark").is_bookmark is True
-    assert _make_post(source="like").is_bookmark is False
+def test_post_text_html_linkifies_urls():
+    """text_html escapes HTML and wraps URLs in clickable anchors."""
+    post = _make_post(text='Check https://example.com/a?b=1&c=2 now')
+    out = post.text_html
+    assert "https://example.com/a?b=1&amp;c=2" in out
+    assert '<a href="https://example.com/a?b=1&amp;c=2"' in out
+    assert 'target="_blank"' in out
+    assert 'rel="noopener noreferrer"' in out
 
 
-def test_post_is_like_and_bookmark():
-    """Both is_like and is_bookmark are True for merged source."""
-    post = _make_post(source="bookmark,like")
-    assert post.is_like is True
-    assert post.is_bookmark is True
+def test_post_text_html_escapes_html():
+    """text_html escapes <script> tags so they are not injected."""
+    post = _make_post(text='<script>alert("x")</script> & more')
+    out = post.text_html
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+    assert "&amp; more" in out
+
+
+def test_post_text_html_keeps_plain_text():
+    """text_html leaves text without URLs untouched (escaped)."""
+    post = _make_post(text="hello world, no links")
+    assert post.text_html == "hello world, no links"
 
 
 def test_post_from_db_row():

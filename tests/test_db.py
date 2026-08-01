@@ -109,17 +109,17 @@ async def test_upsert_post_update(test_db):
     assert row["text"] == "version 2"
 
 
-async def test_upsert_post_source_merge(test_db):
-    """Insert as 'like', then 'bookmark' → source becomes 'bookmark,like'."""
+async def test_upsert_post_source_like(test_db):
+    """Upserting the same post id again preserves the source."""
     post = _make_post("merge_001", text="merge me")
 
     await upsert_post(post, "like", "2025-01-01T00:00:00Z")
-    await upsert_post(post, "bookmark", "2025-01-02T00:00:00Z")
+    await upsert_post(post, "like", "2025-01-02T00:00:00Z")
 
     db = await get_db()
     cursor = await db.execute("SELECT source FROM posts WHERE id = ?", ("merge_001",))
     row = await cursor.fetchone()
-    assert row["source"] == "bookmark,like"
+    assert row["source"] == "like"
 
 
 # ── get_posts / pagination / ordering ───────────────────────────────────
@@ -185,19 +185,6 @@ async def test_search_posts_date_range(sample_posts):
         assert p["created_at"][:7] == "2025-01"
 
 
-async def test_search_posts_source(sample_posts):
-    """Filter by source returns only matching posts."""
-    likes, total_likes = await search_posts(source="like")
-    assert total_likes >= 1
-    for p in likes:
-        assert "like" in p["source"]
-
-    bookmarks, total_bm = await search_posts(source="bookmark")
-    assert total_bm >= 1
-    for p in bookmarks:
-        assert "bookmark" in p["source"]
-
-
 async def test_search_posts_combined(sample_posts):
     """Combined filters apply AND logic."""
     posts, total = await search_posts(q="python", username="alice")
@@ -247,18 +234,46 @@ async def test_update_sync_log(test_db):
 async def test_get_last_sync_log(test_db):
     """get_last_sync_log returns the most recent entry."""
     await create_sync_log("likes")
-    log_id_2 = await create_sync_log("bookmarks")
+    log_id_2 = await create_sync_log("likes")
 
     last = await get_last_sync_log()
     assert last is not None
     assert last["id"] == log_id_2
-    assert last["source_type"] == "bookmarks"
+    assert last["source_type"] == "likes"
 
 
 async def test_get_last_sync_log_empty(test_db):
     """get_last_sync_log returns None when the table is empty."""
     last = await get_last_sync_log()
     assert last is None
+
+
+# ── Sync data deletion helpers ───────────────────────────────────────────
+
+
+async def test_delete_all_posts(test_db):
+    """delete_all_posts empties the posts table."""
+    await upsert_post(_make_post("d1"), "like", "2025-01-01T00:00:00Z")
+    await upsert_post(_make_post("d2"), "like", "2025-01-01T00:00:00Z")
+
+    await db_module.delete_all_posts()
+
+    db = await get_db()
+    cursor = await db.execute("SELECT COUNT(*) AS cnt FROM posts")
+    assert (await cursor.fetchone())["cnt"] == 0
+
+
+async def test_delete_bookmark_posts(test_db):
+    """delete_bookmark_posts removes only posts whose source has 'bookmark'."""
+    await upsert_post(_make_post("b1"), "bookmark", "2025-01-01T00:00:00Z")
+    await upsert_post(_make_post("l1"), "like", "2025-01-01T00:00:00Z")
+
+    await db_module.delete_bookmark_posts()
+
+    db = await get_db()
+    cursor = await db.execute("SELECT id FROM posts ORDER BY id")
+    rows = await cursor.fetchall()
+    assert [r["id"] for r in rows] == ["l1"]
 
 
 # ── row_to_post_dict ─────────────────────────────────────────────────────

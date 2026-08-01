@@ -26,18 +26,17 @@ async def list_posts(
     username: str = Query(default="", description="Filter by author username"),
     date_from: str = Query(default="", description="Start date (YYYY-MM-DD)"),
     date_to: str = Query(default="", description="End date (YYYY-MM-DD)"),
-    source: str = Query(default="all", description="Source filter: like, bookmark, all"),
     page: int = Query(default=1, ge=1, description="Page number"),
 ):
     """Return paginated, searchable post list as HTML fragment."""
     per_page = PAGE_SIZE
     posts_data, total = await search_posts(
         q=q, username=username, date_from=date_from, date_to=date_to,
-        source=source, page=page, per_page=per_page,
+        page=page, per_page=per_page,
     )
 
     posts = [Post.from_db_row(p) for p in posts_data]
-    has_filters = bool(q or username or date_from or date_to or source != "all")
+    has_filters = bool(q or username or date_from or date_to)
 
     return templates.TemplateResponse(
         request,
@@ -52,7 +51,6 @@ async def list_posts(
             "username": username,
             "date_from": date_from,
             "date_to": date_to,
-            "source": source,
         },
     )
 
@@ -64,14 +62,13 @@ async def load_more(
     username: str = Query(default=""),
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
-    source: str = Query(default="all"),
     page: int = Query(default=1, ge=1),
 ):
     """Return next page of post cards as HTML fragment for HTMX append."""
     per_page = PAGE_SIZE
     posts_data, total = await search_posts(
         q=q, username=username, date_from=date_from, date_to=date_to,
-        source=source, page=page, per_page=per_page,
+        page=page, per_page=per_page,
     )
 
     posts = [Post.from_db_row(p) for p in posts_data]
@@ -88,7 +85,6 @@ async def load_more(
             "username": username,
             "date_from": date_from,
             "date_to": date_to,
-            "source": source,
         },
     )
 
@@ -99,14 +95,13 @@ async def api_list_posts(
     username: str = Query(default=""),
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
-    source: str = Query(default="all"),
     page: int = Query(default=1, ge=1),
 ):
     """JSON API returning posts with pagination info."""
     per_page = PAGE_SIZE
     posts_data, total = await search_posts(
         q=q, username=username, date_from=date_from, date_to=date_to,
-        source=source, page=page, per_page=per_page,
+        page=page, per_page=per_page,
     )
 
     posts = [Post.from_db_row(p).model_dump() for p in posts_data]

@@ -12,11 +12,8 @@
                 {% if post.is_like %}
                 <span class="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">&#10084;&#65039; like</span>
                 {% endif %}
-                {% if post.is_bookmark %}
-                <span class="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-medium">&#128278; bookmark</span>
-                {% endif %}
             </div>
-            <p class="text-primary mt-1 whitespace-pre-wrap break-words leading-relaxed">{{ post.text }}</p>
+            <p class="text-primary mt-1 whitespace-pre-wrap break-words leading-relaxed">{{ post.text_html | safe }}</p>
             {% if post.media_urls %}
             <div class="media-grid mt-2">
                 {% for url in post.media_urls[:4] %}

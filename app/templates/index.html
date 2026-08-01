@@ -3,7 +3,6 @@
 {% block header %}
 <header class="sticky top-0 z-50 card-bg backdrop-blur-md border-b border-themed">
     <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-        <h1 class="text-xl font-bold text-primary tracking-tight">&#128230; xarchive</h1>
         <div class="flex items-center gap-2">
             <div id="sync-button" class="sync-container"
                  hx-get="/sync/status"
@@ -46,9 +45,9 @@
     }
     function hasSearchParams() {
         var p = new URLSearchParams(window.location.search);
-        return ['q', 'username', 'date_from', 'date_to', 'source'].some(function (k) {
+        return ['q', 'username', 'date_from', 'date_to'].some(function (k) {
             var v = p.get(k);
-            return v && v !== '' && v !== 'all';
+            return v && v !== '';
         });
     }
     if (hasSearchParams()) {

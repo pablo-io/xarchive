@@ -65,12 +65,13 @@ async def test_list_posts_pagination(app_client, sample_posts):
     assert "text/html" in response.headers.get("content-type", "")
 
 
-async def test_list_posts_source_filter(app_client, sample_posts):
-    """GET /posts?source=like returns only like posts."""
-    response = await app_client.get("/posts", params={"source": "like"})
+async def test_list_posts_source_filter_removed(app_client, sample_posts):
+    """The source filter was removed — GET /posts ignores a source param."""
+    response = await app_client.get("/posts", params={"source": "bookmark"})
     assert response.status_code == 200
-    # The response should contain the like badge
-    assert "like" in response.text.lower()
+    # No source combobox/option in the search bar anymore
+    assert "bookmarks</option" not in response.text.lower()
+    assert "source" not in response.text.lower() or "search-source" not in response.text
 
 
 # ── GET /posts/load-more ─────────────────────────────────────────────────

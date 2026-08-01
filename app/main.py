@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="xarchive",
-        description="Local X.com (Twitter) likes and bookmarks archive with search",
+        description="Local X.com (Twitter) likes archive with search",
         version="0.1.0",
         lifespan=lifespan,
     )

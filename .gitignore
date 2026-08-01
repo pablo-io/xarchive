@@ -19,3 +19,6 @@ venv/
 
 # Lock files
 uv.lock
+
+# Devloop state
+.devloop/

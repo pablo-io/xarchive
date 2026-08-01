@@ -1,12 +1,14 @@
 """Pydantic models for xarchive data transfer and validation."""
 
+import html
+import re
 from datetime import datetime
 
 from pydantic import BaseModel
 
 
 class XurlPostInput(BaseModel):
-    """Validates the JSON output from `xurl likes` / `xurl bookmarks`."""
+    """Validates a single post adapted from the xurl likes API response."""
 
     id: str
     text: str
@@ -49,9 +51,19 @@ class Post(BaseModel):
         return "like" in self.source
 
     @property
-    def is_bookmark(self) -> bool:
-        """True if this post was imported as a bookmark."""
-        return "bookmark" in self.source
+    def text_html(self) -> str:
+        """Escape the post text and turn URLs into clickable links."""
+        escaped = html.escape(self.text)
+
+        def _linkify(match: re.Match) -> str:
+            url = match.group(0)
+            return (
+                f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+                'class="text-blue-600 hover:underline">'
+                f"{url}</a>"
+            )
+
+        return re.sub(r"https?://[^\s<>]+", _linkify, escaped)
 
     @classmethod
     def from_db_row(cls, row: dict) -> "Post":

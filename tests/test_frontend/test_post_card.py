@@ -20,7 +20,6 @@ def make_post(media_count: int = 0) -> dict:
         "author_username": "alice",
         "created_at_display": "2025-01-01",
         "is_like": False,
-        "is_bookmark": False,
         "text": "hello world",
         "media_urls": [f"https://example.com/m{i}.jpg" for i in range(media_count)],
         "url": "https://x.com/alice/status/1",

@@ -42,15 +42,6 @@
         </div>
     </div>
     <div class="flex items-center gap-3 mt-3">
-        <div>
-            <label for="search-source" class="sr-only">Source filter</label>
-            <select id="search-source" name="source"
-                    class="search-field px-3 py-2 border border-themed card-bg text-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <option value="all" {{ 'selected' if source | default('all') == 'all' }}>All sources</option>
-                <option value="like" {{ 'selected' if source | default('') == 'like' }}>&#10084;&#65039; Likes</option>
-                <option value="bookmark" {{ 'selected' if source | default('') == 'bookmark' }}>&#128278; Bookmarks</option>
-            </select>
-        </div>
         <span id="search-spinner" class="htmx-indicator">
             <span class="inline-block animate-spin text-blue-500">&#10227;</span>
         </span>

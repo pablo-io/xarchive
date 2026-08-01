@@ -92,10 +92,10 @@ async def app_client(test_db):
 
 @pytest.fixture
 async def sample_posts(test_db):
-    """Insert 15 sample posts with varied text, usernames, dates, sources, media.
+    """Insert 15 sample posts with varied text, usernames, dates, media.
 
     Posts are spread across ~225 days (roughly Nov 2024 – Jun 2025).
-    Sources cycle between 'like' and 'bookmark'; every 4th post has media.
+    Every 4th post has media. All posts are likes.
     """
     now = datetime.now(timezone.utc).isoformat()
 
@@ -109,7 +109,7 @@ async def sample_posts(test_db):
         dt = datetime(2025, 6, 1, tzinfo=timezone.utc) - timedelta(days=days_ago)
         created_at = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        source = "bookmark" if i % 3 == 0 else "like"
+        source = "like"
         has_media = i % 4 == 0
         username = usernames[i % 5]
         topic = topics[i % 5]
@@ -145,7 +145,7 @@ MOCK_POSTS: list[dict] = [
         "author_username": "mockuser1",
         "author_name": "Mock User One",
         "author_avatar": "https://example.com/mock1.jpg",
-        "created_at": "2025-01-15T10:00:00Z",
+        "created_at": "2026-01-15T10:00:00Z",
         "media_urls": [],
         "url": "https://x.com/mockuser1/status/1",
     },
@@ -156,7 +156,7 @@ MOCK_POSTS: list[dict] = [
         "author_username": "mockuser2",
         "author_name": "Mock User Two",
         "author_avatar": "https://example.com/mock2.jpg",
-        "created_at": "2025-02-20T14:30:00Z",
+        "created_at": "2026-02-20T14:30:00Z",
         "media_urls": ["https://example.com/mock_media.jpg"],
         "url": "https://x.com/mockuser2/status/2",
     },
@@ -167,7 +167,7 @@ MOCK_POSTS: list[dict] = [
         "author_username": "mockuser3",
         "author_name": "Mock User Three",
         "author_avatar": "https://example.com/mock3.jpg",
-        "created_at": "2025-03-10T08:15:00Z",
+        "created_at": "2026-03-10T08:15:00Z",
         "media_urls": [],
         "url": "https://x.com/mockuser3/status/3",
     },
@@ -178,7 +178,7 @@ MOCK_POSTS: list[dict] = [
         "author_username": "mockuser4",
         "author_name": "Mock User Four",
         "author_avatar": "https://example.com/mock4.jpg",
-        "created_at": "2025-04-05T16:45:00Z",
+        "created_at": "2026-04-05T16:45:00Z",
         "media_urls": [
             "https://example.com/mock_media_a.jpg",
             "https://example.com/mock_media_b.jpg",
@@ -192,18 +192,115 @@ MOCK_POSTS: list[dict] = [
         "author_username": "mockuser5",
         "author_name": "Mock User Five",
         "author_avatar": "https://example.com/mock5.jpg",
-        "created_at": "2025-05-12T09:00:00Z",
+        "created_at": "2026-05-12T09:00:00Z",
         "media_urls": [],
         "url": "https://x.com/mockuser5/status/5",
     },
 ]
 
 
-def _make_mock_process(posts_json: list[dict]) -> MagicMock:
-    """Build a mock asyncio subprocess that returns *posts_json* as stdout."""
+MOCK_POSTS_PAGE_2: list[dict] = [
+    {
+        "id": "mock_101",
+        "text": "Sixth mock about distributed systems",
+        "author_id": "mock_user_6",
+        "author_username": "mockuser6",
+        "author_name": "Mock User Six",
+        "author_avatar": "https://example.com/mock6.jpg",
+        "created_at": "2026-01-01T09:00:00Z",
+        "media_urls": [],
+        "url": "https://x.com/mockuser6/status/101",
+    },
+    {
+        "id": "mock_102",
+        "text": "Seventh mock about databases",
+        "author_id": "mock_user_7",
+        "author_username": "mockuser7",
+        "author_name": "Mock User Seven",
+        "author_avatar": "https://example.com/mock7.jpg",
+        "created_at": "2026-01-02T09:00:00Z",
+        "media_urls": [],
+        "url": "https://x.com/mockuser7/status/102",
+    },
+    {
+        "id": "mock_103",
+        "text": "Eighth mock about devops",
+        "author_id": "mock_user_8",
+        "author_username": "mockuser8",
+        "author_name": "Mock User Eight",
+        "author_avatar": "https://example.com/mock8.jpg",
+        "created_at": "2026-01-03T09:00:00Z",
+        "media_urls": [],
+        "url": "https://x.com/mockuser8/status/103",
+    },
+    {
+        "id": "mock_104",
+        "text": "Ninth mock about security",
+        "author_id": "mock_user_9",
+        "author_username": "mockuser9",
+        "author_name": "Mock User Nine",
+        "author_avatar": "https://example.com/mock9.jpg",
+        "created_at": "2026-01-04T09:00:00Z",
+        "media_urls": [],
+        "url": "https://x.com/mockuser9/status/104",
+    },
+    {
+        "id": "mock_105",
+        "text": "Tenth mock about observability",
+        "author_id": "mock_user_10",
+        "author_username": "mockuser10",
+        "author_name": "Mock User Ten",
+        "author_avatar": "https://example.com/mock10.jpg",
+        "created_at": "2026-01-05T09:00:00Z",
+        "media_urls": [],
+        "url": "https://x.com/mockuser10/status/105",
+    },
+]
+
+
+def _likes_payload(posts: list[dict], next_token: str | None = None) -> dict:
+    """Wrap a list of post dicts into a raw liked_tweets API response.
+
+    Mirrors the shape xurl returns: ``{data, includes.users, meta}``.
+    """
+    data: list[dict] = []
+    users: list[dict] = []
+    seen_users: set[str] = set()
+
+    for p in posts:
+        data.append(
+            {
+                "id": p["id"],
+                "text": p["text"],
+                "author_id": p["author_id"],
+                "created_at": p["created_at"],
+                "entities": {},
+                "attachments": {},
+            }
+        )
+        if p["author_id"] not in seen_users:
+            seen_users.add(p["author_id"])
+            users.append(
+                {
+                    "id": p["author_id"],
+                    "username": p["author_username"],
+                    "name": p["author_name"],
+                    "profile_image_url": p["author_avatar"],
+                }
+            )
+
+    meta: dict = {"result_count": len(data)}
+    if next_token:
+        meta["next_token"] = next_token
+
+    return {"data": data, "includes": {"users": users}, "meta": meta}
+
+
+def _make_mock_process(payload: dict) -> MagicMock:
+    """Build a mock asyncio subprocess that returns *payload* as stdout."""
     proc = MagicMock()
     proc.communicate = AsyncMock(
-        return_value=(json.dumps(posts_json).encode("utf-8"), b""),
+        return_value=(json.dumps(payload).encode("utf-8"), b""),
     )
     proc.returncode = 0
     proc.kill = MagicMock()
@@ -213,11 +310,33 @@ def _make_mock_process(posts_json: list[dict]) -> MagicMock:
 
 @pytest.fixture
 def mock_xurl():
-    """Patch ``asyncio.create_subprocess_exec`` to return 5 canned posts."""
-    proc = _make_mock_process(MOCK_POSTS)
-    mock_exec = AsyncMock(return_value=proc)
+    """Patch ``asyncio.create_subprocess_exec`` to serve a fake X API.
 
-    with patch("asyncio.create_subprocess_exec", mock_exec) as m:
+    ``/2/users/me`` returns the authenticated user; ``liked_tweets`` returns
+    one page of 5 canned posts (no pagination token).
+    """
+    async def _exec(*args, **kwargs):
+        path = args[1]
+        if "/2/users/me" in path:
+            return _make_mock_process({"data": {"id": "12345", "username": "mockuser"}})
+        return _make_mock_process(_likes_payload(MOCK_POSTS))
+
+    with patch("asyncio.create_subprocess_exec", side_effect=_exec) as m:
+        yield m
+
+
+@pytest.fixture
+def mock_xurl_paginated():
+    """Patch subprocess to serve two pages of likes (5 + 5 = 10 posts)."""
+    async def _exec(*args, **kwargs):
+        path = args[1]
+        if "/2/users/me" in path:
+            return _make_mock_process({"data": {"id": "12345", "username": "mockuser"}})
+        if "pagination_token" in path:
+            return _make_mock_process(_likes_payload(MOCK_POSTS_PAGE_2))
+        return _make_mock_process(_likes_payload(MOCK_POSTS, next_token="token_next"))
+
+    with patch("asyncio.create_subprocess_exec", side_effect=_exec) as m:
         yield m
 
 
@@ -228,4 +347,32 @@ def mock_xurl_not_found():
         "asyncio.create_subprocess_exec",
         side_effect=FileNotFoundError("xurl not found"),
     ) as m:
+        yield m
+
+
+@pytest.fixture
+def mock_xurl_rate_limited():
+    """Patch subprocess: page 1 succeeds with a token, page 2 hits 429.
+
+    Simulates hitting the X API rate limit mid-sync.
+    """
+    async def _exec(*args, **kwargs):
+        path = args[1]
+        if "/2/users/me" in path:
+            return _make_mock_process({"data": {"id": "12345", "username": "mockuser"}})
+        if "pagination_token" in path:
+            proc = MagicMock()
+            proc.communicate = AsyncMock(
+                return_value=(
+                    b'{"status":429,"title":"Too Many Requests","detail":"Too Many Requests"}',
+                    b"",
+                )
+            )
+            proc.returncode = 1
+            proc.kill = MagicMock()
+            proc.wait = AsyncMock()
+            return proc
+        return _make_mock_process(_likes_payload(MOCK_POSTS, next_token="token_next"))
+
+    with patch("asyncio.create_subprocess_exec", side_effect=_exec) as m:
         yield m

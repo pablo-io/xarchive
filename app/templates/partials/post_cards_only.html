@@ -1,12 +1,16 @@
+<div id="post-count" hx-swap-oob="true" class="text-sm text-gray-500 mb-3">
+    Showing {{ [page * per_page, total] | min }} of {{ total }} posts
+</div>
 {% for post in posts %}
     {% include "partials/post_card.html" %}
 {% endfor %}
 
 {% if page * per_page < total %}
-<div id="load-more-container" class="text-center mt-4">
-    <button hx-get="/posts/load-more?page={{ page + 1 }}&q={{ q }}&username={{ username }}&date_from={{ date_from }}&date_to={{ date_to }}&source={{ source }}"
+<div class="load-more-wrap text-center mt-4">
+    <button hx-get="/posts/load-more?page={{ page + 1 }}&q={{ q }}&username={{ username }}&date_from={{ date_from }}&date_to={{ date_to }}"
             hx-swap="beforeend"
             hx-target="#post-cards"
+            hx-on::after-request="this.closest('.load-more-wrap').remove()"
             class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm">
         Load more
     </button>

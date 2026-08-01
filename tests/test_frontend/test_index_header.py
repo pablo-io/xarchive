@@ -16,13 +16,15 @@ def render_index() -> str:
     return _html.unescape(templates.get_template("index.html").render())
 
 
-def test_header_contains_title():
+def test_header_has_no_logo():
+    """The xarchive logo/title was removed from the header."""
     html = render_index()
-    assert "xarchive" in html
-    assert "📦" in html
+    # The <h1> logo block is gone from the header.
+    assert "<h1" not in html
+    assert "📦" not in html
 
 
-def test_header_has_four_controls():
+def test_header_has_three_controls():
     html = render_index()
     assert 'id="sync-button"' in html
     assert 'id="search-toggle"' in html

@@ -33,7 +33,8 @@ _MIGRATIONS: list[str] = [
         source TEXT NOT NULL,
         media_urls TEXT NOT NULL DEFAULT '[]',
         url TEXT NOT NULL,
-        imported_at TEXT NOT NULL
+        imported_at TEXT NOT NULL,
+        like_order INTEGER NOT NULL DEFAULT 0
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC)",
@@ -48,10 +49,28 @@ _MIGRATIONS: list[str] = [
         status TEXT NOT NULL DEFAULT 'running',
         posts_new INTEGER NOT NULL DEFAULT 0,
         posts_updated INTEGER NOT NULL DEFAULT 0,
-        error_message TEXT
+        error_message TEXT,
+        next_token TEXT,
+        like_order_mode TEXT
     )
     """,
 ]
+
+# Idempotent column additions for databases created before these columns existed.
+_ALTER_COLUMNS: list[tuple[str, str, str]] = [
+    ("posts", "like_order", "ALTER TABLE posts ADD COLUMN like_order INTEGER NOT NULL DEFAULT 0"),
+    ("sync_log", "next_token", "ALTER TABLE sync_log ADD COLUMN next_token TEXT"),
+    ("sync_log", "like_order_mode", "ALTER TABLE sync_log ADD COLUMN like_order_mode TEXT"),
+]
+
+
+async def _ensure_column(db: aiosqlite.Connection, table: str, column: str, ddl: str) -> None:
+    """Add a column if it is missing (idempotent migration)."""
+    cursor = await db.execute(f"PRAGMA table_info({table})")
+    rows = await cursor.fetchall()
+    if any(r[1] == column for r in rows):
+        return
+    await db.execute(ddl)
 
 # ── Connection management ──────────────────────────────────────────
 
@@ -75,6 +94,15 @@ async def init_db() -> None:
     # Run migrations
     for migration in _MIGRATIONS:
         await _db.execute(migration)
+
+    # Add any columns introduced after the original table definitions.
+    for table, column, ddl in _ALTER_COLUMNS:
+        await _ensure_column(_db, table, column, ddl)
+
+    # Indexes that reference columns added via ALTER must be created after.
+    await _db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_posts_like_order ON posts(like_order DESC)"
+    )
 
     await _db.commit()
 
@@ -102,11 +130,7 @@ async def get_db() -> aiosqlite.Connection:
 async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
     """Insert or update a post in the database.
 
-    Uses a single atomic INSERT ... ON CONFLICT DO UPDATE with inline
-    source merging. This avoids TOCTOU races between SELECT and INSERT.
-
-    Source merging: if a post is already a 'like' and we import it from
-    bookmarks, the source becomes 'bookmark,like'.
+    Uses a single atomic INSERT ... ON CONFLICT DO UPDATE.
     """
     db = await get_db()
 
@@ -128,16 +152,7 @@ async def upsert_post(post: XurlPostInput, source: str, now: str) -> str:
             author_name = excluded.author_name,
             author_avatar = excluded.author_avatar,
             created_at = excluded.created_at,
-            source = CASE
-                WHEN posts.source = excluded.source THEN posts.source
-                WHEN (posts.source = 'like' OR posts.source LIKE '%,like' OR posts.source LIKE 'like,%' OR posts.source LIKE '%,like,%')
-                     AND excluded.source = 'bookmark'
-                    THEN 'bookmark,like'
-                WHEN (posts.source = 'bookmark' OR posts.source LIKE '%,bookmark' OR posts.source LIKE 'bookmark,%' OR posts.source LIKE '%,bookmark,%')
-                     AND excluded.source = 'like'
-                    THEN 'bookmark,like'
-                ELSE excluded.source
-            END,
+            source = excluded.source,
             media_urls = excluded.media_urls,
             url = excluded.url,
             imported_at = excluded.imported_at
@@ -175,13 +190,13 @@ def row_to_post_dict(row: aiosqlite.Row) -> dict:
 
 
 async def get_posts(
-    page: int = 1, per_page: int = PAGE_SIZE, source: str = "all"
+    page: int = 1, per_page: int = PAGE_SIZE
 ) -> tuple[list[dict], int]:
-    """Get paginated posts, optionally filtered by source.
+    """Get paginated posts.
 
     Returns (list_of_post_dicts, total_count).
     """
-    return await search_posts(source=source, page=page, per_page=per_page)
+    return await search_posts(page=page, per_page=per_page)
 
 
 def _build_post_query(
@@ -189,7 +204,6 @@ def _build_post_query(
     username: str = "",
     date_from: str = "",
     date_to: str = "",
-    source: str = "all",
 ) -> tuple[str, list]:
     """Build a parameterized WHERE clause and parameter list for post search.
 
@@ -214,11 +228,6 @@ def _build_post_query(
         conditions.append("posts.created_at <= ?")
         params.append(f"{date_to}T23:59:59Z")
 
-    if source != "all":
-        conditions.append("(posts.source = ? OR posts.source LIKE ?)")
-        params.append(source)
-        params.append(f"%,{source}%")
-
     where = " AND ".join(conditions) if conditions else "1=1"
     return where, params
 
@@ -228,7 +237,6 @@ async def search_posts(
     username: str = "",
     date_from: str = "",
     date_to: str = "",
-    source: str = "all",
     page: int = 1,
     per_page: int = PAGE_SIZE,
 ) -> tuple[list[dict], int]:
@@ -238,7 +246,7 @@ async def search_posts(
     All query parameters use parameterized queries — no string interpolation.
     """
     db = await get_db()
-    where, params = _build_post_query(q, username, date_from, date_to, source)
+    where, params = _build_post_query(q, username, date_from, date_to)
     offset = (page - 1) * per_page
 
     # Count total matching rows
@@ -250,7 +258,7 @@ async def search_posts(
     # Fetch page of results
     data_sql = (
         f"SELECT * FROM posts WHERE {where}"
-        f" ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        f" ORDER BY like_order DESC, created_at DESC LIMIT ? OFFSET ?"
     )
     cursor = await db.execute(data_sql, [*params, per_page, offset])
     rows = await cursor.fetchall()
@@ -313,3 +321,96 @@ async def get_last_sync_log() -> dict | None:
     if row is None:
         return None
     return dict(row)
+
+
+# ── Sync data deletion ───────────────────────────────────────────────────
+
+
+async def delete_all_posts() -> None:
+    """Delete every row from the posts table."""
+    db = await get_db()
+    await db.execute("DELETE FROM posts")
+    await db.commit()
+
+
+async def delete_bookmark_posts() -> None:
+    """Delete posts whose source includes 'bookmark'."""
+    db = await get_db()
+    await db.execute(
+        "DELETE FROM posts WHERE source LIKE '%bookmark%'"
+    )
+    await db.commit()
+
+
+# ── Sync resume / like order ─────────────────────────────────────────────
+
+
+async def get_sync_resume_state() -> dict | None:
+    """Return the most recent incomplete sync's resume state, or None.
+
+    Used to resume pagination after a rate-limited sync. Returns a dict with
+    ``next_token`` and ``like_order_mode``.
+    """
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT next_token, like_order_mode FROM sync_log "
+        "WHERE status != 'success' AND next_token IS NOT NULL "
+        "ORDER BY id DESC LIMIT 1"
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {"next_token": row["next_token"], "like_order_mode": row["like_order_mode"]}
+
+
+async def save_sync_token(log_id: int, next_token: str | None, like_order_mode: str | None) -> None:
+    """Persist the pagination token (and like-order mode) for a sync_log row."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE sync_log SET next_token = ?, like_order_mode = ? WHERE id = ?",
+        (next_token, like_order_mode, log_id),
+    )
+    await db.commit()
+
+
+async def get_min_like_order() -> int:
+    """Return the current minimum like_order (0 if the table is empty)."""
+    db = await get_db()
+    cursor = await db.execute("SELECT COALESCE(MIN(like_order), 0) AS m FROM posts")
+    row = await cursor.fetchone()
+    return row["m"]
+
+
+async def get_max_like_order() -> int:
+    """Return the current maximum like_order (0 if the table is empty)."""
+    db = await get_db()
+    cursor = await db.execute("SELECT COALESCE(MAX(like_order), 0) AS m FROM posts")
+    row = await cursor.fetchone()
+    return row["m"]
+
+
+async def set_post_like_order(post_id: str, like_order: int) -> None:
+    """Set the like_order of a single post."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE posts SET like_order = ? WHERE id = ?",
+        (like_order, post_id),
+    )
+    await db.commit()
+
+
+async def assign_like_orders(post_ids: list[str], base: int) -> None:
+    """Assign sequential like_orders to newly imported posts.
+
+    ``post_ids`` must be in like order (most recent first). The first post
+    receives ``base`` and each following post receives ``base - 1``.
+    """
+    if not post_ids:
+        return
+    db = await get_db()
+    for i, post_id in enumerate(post_ids):
+        await db.execute(
+            "UPDATE posts SET like_order = ? WHERE id = ?",
+            (base - i, post_id),
+        )
+    await db.commit()

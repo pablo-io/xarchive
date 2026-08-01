@@ -2,8 +2,8 @@
 
 These tests render the ``partials/sync_button.html`` template directly and
 assert the structure required by the design contract: in the idle state there
-must be NO <select> combobox and the submit button must carry
-``name="source_type" value="both"``.
+must be NO <select> combobox and the submit button posts directly to ``/sync``
+without a ``source_type`` field (only likes are synced now).
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ def test_idle_has_no_select_combobox():
     assert "<select" not in html.lower()
 
 
-def test_idle_button_carries_source_type_both():
+def test_idle_button_posts_to_sync_without_source_type():
     html = render_sync("idle")
-    assert 'name="source_type"' in html
-    assert 'value="both"' in html
+    assert 'hx-post="/sync"' in html
+    assert 'name="source_type"' not in html
 
 
 def test_idle_form_posts_to_sync_with_htmx():
@@ -36,7 +36,15 @@ def test_idle_form_posts_to_sync_with_htmx():
 def test_idle_submit_button_has_aria_label():
     html = render_sync("idle")
     assert 'type="submit"' in html
-    assert "🔄" in html or "&#10227;" in html
+    assert "&#128260;" in html  # 🔄 sync icon
+    assert 'aria-label="Sync likes"' in html
+
+
+def test_idle_button_is_icon_only():
+    """The idle sync button is an icon with no visible text."""
+    html = render_sync("idle")
+    assert "Sync" not in html.replace("Sync likes", "").replace("aria-label", "")
+    assert "p-2 rounded-lg bg-hover text-primary text-lg" in html
 
 
 def test_other_states_render_without_error():

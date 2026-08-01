@@ -4,6 +4,7 @@ import pytest
 
 import app.db as db_module
 from app.db import get_db
+from app.models import XurlPostInput
 from tests.conftest import MOCK_POSTS, MOCK_POSTS_PAGE_2
 
 
@@ -288,3 +289,258 @@ async def test_sync_assigns_like_order(app_client, mock_xurl):
     # First (highest like_order) is the newest like in the API response order.
     # MOCK_POSTS[0] is the most recent like.
     assert rows[0]["id"] == MOCK_POSTS[0]["id"]
+
+
+# ── Incremental mode (Issue #32) ──────────────────────────────────────────
+
+
+async def test_sync_incremental_mode_assigns_orders_above_max(
+    app_client, mock_xurl, test_db
+):
+    """In incremental mode (DB already has posts with non-zero like_order), new
+    posts receive like_orders ABOVE the current maximum, so they sort to the
+    top of the list. This is the contract for issue #32 ("new likes end up
+    on top").
+
+    Seed 3 posts with like_order in [-3, -2, -1] (typical backfilled state).
+    Then run a sync that imports MOCK_POSTS (5 new posts). The new posts
+    must receive like_orders strictly greater than -1.
+    """
+    # Seed three pre-existing posts with explicit like_orders.
+    seeded = [
+        ("seed_a", -3),
+        ("seed_b", -2),
+        ("seed_c", -1),
+    ]
+    now = "2025-01-01T00:00:00Z"
+    for pid, order in seeded:
+        await db_module.upsert_post(
+            XurlPostInput(
+                id=pid,
+                text=f"seeded {pid}",
+                author_id="seed_user",
+                author_username="seeduser",
+                author_name="Seed User",
+                author_avatar="",
+                created_at="2026-01-10T10:00:00Z",
+                media_urls=[],
+                url=f"https://x.com/seeduser/status/{pid}",
+            ),
+            "like",
+            now,
+        )
+        await db_module.set_post_like_order(pid, order)
+
+    # Sanity: max like_order is -1 before the sync.
+    pre_max = await db_module.get_max_like_order()
+    assert pre_max == -1
+
+    response = await app_client.post("/sync")
+    assert response.status_code == 200
+
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT id, like_order FROM posts WHERE id LIKE 'mock_%' "
+        "ORDER BY like_order DESC"
+    )
+    new_rows = await cursor.fetchall()
+    assert len(new_rows) == len(MOCK_POSTS)
+
+    new_orders = [r["like_order"] for r in new_rows]
+    # In incremental mode, every new like_order must be strictly greater
+    # than the prior max (-1), i.e. positive integers.
+    assert all(o > pre_max for o in new_orders), (
+        f"incremental sync must place new likes above the prior max; got {new_orders}"
+    )
+    # And they must be distinct.
+    assert len(set(new_orders)) == len(new_orders)
+
+
+async def test_sync_incremental_mode_persists_like_order_mode(
+    app_client, mock_xurl, test_db
+):
+    """In incremental mode, ``like_order_mode`` must be persisted as
+    'incremental' in ``sync_log`` (so a subsequent resume reuses the same
+    mode). After a successful sync, the token is cleared but the mode stays.
+    """
+    # Seed one post so the next sync is detected as incremental.
+    await db_module.upsert_post(
+        XurlPostInput(
+            id="seed_for_mode",
+            text="seed",
+            author_id="u",
+            author_username="u",
+            author_name="U",
+            author_avatar="",
+            created_at="2026-01-10T10:00:00Z",
+            media_urls=[],
+            url="https://x.com/u/status/seed",
+        ),
+        "like",
+        "2025-01-01T00:00:00Z",
+    )
+    await db_module.set_post_like_order("seed_for_mode", -1)
+
+    await app_client.post("/sync")
+
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT like_order_mode, next_token FROM sync_log "
+        "WHERE status = 'success' ORDER BY id DESC LIMIT 1"
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["like_order_mode"] == "incremental"
+    assert row["next_token"] is None
+
+
+async def test_sync_backfill_mode_persists_like_order_mode(
+    app_client, mock_xurl
+):
+    """In backfill mode (DB empty), ``like_order_mode`` must be persisted as
+    'backfill' so a resume that re-enters after a rate limit reuses the
+    correct mode.
+    """
+    await app_client.post("/sync")
+
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT like_order_mode, next_token FROM sync_log "
+        "WHERE status = 'success' ORDER BY id DESC LIMIT 1"
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["like_order_mode"] == "backfill"
+
+
+# ── 2026 cutoff mid-page (Issue #33) ──────────────────────────────────────
+
+
+async def test_sync_stops_mid_page_at_2026_cutoff(app_client, test_db):
+    """When a single page contains a mix of in-window and pre-2026 posts, the
+    sync imports the in-window ones and STOPS before importing any
+    pre-2026 post. No second page is fetched.
+
+    Page 1 (returned by the mock):
+        - 2026-06-01 (in window → import)
+        - 2025-12-31 (pre-2026 → stop, do NOT import)
+        - 2025-12-30 (would be next, but loop already broke → do NOT import)
+    """
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    mixed_page = [
+        {
+            "id": "in_001",
+            "text": "2026 post (should be imported)",
+            "author_id": "u_in",
+            "created_at": "2026-06-01T12:00:00Z",
+            "author_username": "inuser",
+            "author_name": "In User",
+            "author_avatar": "",
+        },
+        {
+            "id": "out_001",
+            "text": "2025 post (should NOT be imported)",
+            "author_id": "u_out",
+            "created_at": "2025-12-31T23:59:59Z",
+            "author_username": "outuser",
+            "author_name": "Out User",
+            "author_avatar": "",
+        },
+        {
+            "id": "out_002",
+            "text": "another 2025 post (loop already broke)",
+            "author_id": "u_out2",
+            "created_at": "2025-12-30T23:59:59Z",
+            "author_username": "outuser2",
+            "author_name": "Out User 2",
+            "author_avatar": "",
+        },
+    ]
+
+    async def _exec(*args, **kwargs):
+        path = args[1]
+        if "/2/users/me" in path:
+            return MagicMock(
+                communicate=AsyncMock(
+                    return_value=(
+                        json.dumps({"data": {"id": "1", "username": "me"}}).encode(),
+                        b"",
+                    )
+                ),
+                returncode=0,
+            )
+        # Only one page is served — if the loop calls a second time, the
+        # test would not observe a stop at the cutoff.
+        return MagicMock(
+            communicate=AsyncMock(
+                return_value=(
+                    json.dumps(
+                        {
+                            "data": mixed_page,
+                            "includes": {"users": []},
+                            "meta": {"next_token": "should_not_be_used"},
+                        }
+                    ).encode(),
+                    b"",
+                )
+            ),
+            returncode=0,
+        )
+
+    with patch("asyncio.create_subprocess_exec", side_effect=_exec) as m:
+        response = await app_client.post("/sync")
+    assert response.status_code == 200
+
+    db = await get_db()
+    cursor = await db.execute("SELECT id FROM posts ORDER BY id")
+    rows = await cursor.fetchall()
+    imported_ids = [r["id"] for r in rows]
+
+    # Only the 2026 post was imported; both 2025 posts were skipped.
+    assert imported_ids == ["in_001"], (
+        f"only the 2026 post should be imported; got {imported_ids}"
+    )
+
+    # And the subprocess was called exactly twice: /2/users/me + 1 page.
+    # No second page was fetched.
+    assert m.call_count == 2
+
+
+# ── like_order before rate limit (Issue #31) ─────────────────────────────
+
+
+async def test_sync_assigns_like_orders_before_rate_limit(
+    app_client, mock_xurl_rate_limited
+):
+    """When a sync is cut off by a 429, the posts from the successful page
+    MUST still receive their like_order assignment. The contract is that the
+    partial progress is not lost — and like_order is part of that progress
+    (otherwise the next view would show them as 0, out of order).
+    """
+    response = await app_client.post("/sync")
+    assert response.status_code == 200
+    # The error path is taken, but the post-rate-limit work also happened
+    # (the `_assign_like_orders` call lives in the `finally` block).
+    assert "rate limit" in response.text.lower()
+
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT id, like_order FROM posts WHERE id LIKE 'mock_%' "
+        "ORDER BY like_order DESC"
+    )
+    rows = await cursor.fetchall()
+    assert len(rows) == len(MOCK_POSTS)
+
+    # Every post got a distinct, non-zero like_order (NOT 0 = default).
+    # `0` would mean the assignment never happened.
+    for r in rows:
+        assert r["like_order"] != 0, (
+            f"post {r['id']} still has like_order=0 — assignment was skipped"
+        )
+
+    orders = [r["like_order"] for r in rows]
+    assert len(set(orders)) == len(orders), (
+        f"like_orders are not unique: {orders}"
+    )
